@@ -12,6 +12,8 @@ import (
 	bimg "gopkg.in/h2non/bimg.v1"
 )
 
+// IMPORTANT :This test may fail due to images being deleted from their
+// 			  respective domains. Test the images before modifying code
 var fetchCases = []struct {
 	url     string
 	method  string
@@ -23,6 +25,18 @@ var fetchCases = []struct {
 		"GET",
 		200,
 		"Regular use",
+	},
+	{
+		"/image/fetch/w_100,h_100,c_limit/https://upload.wikimedia.org/wikipedia/commons/0/0c/Scarlett_Johansson_Césars_2014.jpg",
+		"GET",
+		200,
+		"Regular use with https",
+	},
+	{
+		"/image/fetch/w_100,h_141/http://www.astrobot.eu/skymapserver/skymap?type=png&size=800&colorset=0&lang=en&lon=",
+		"GET",
+		200,
+		"Regular use with params url",
 	},
 	{
 		"/image/fetch/w_500,c_limit/http://upload.wikimedia.org/wikipedia/commons/0/0c/Scarlett_Johansson_Césars_2014.jpg",
