@@ -32,7 +32,7 @@ func (img *Image) Load(r io.Reader) {
 }
 
 // Download retrieves url into io.Reader
-func (img *Image) Download(sd storage.Driver) error {
+func (img *Image) Download(sd storage.Driver, async bool) error {
 
 	c := &http.Client{
 		Transport: &http.Transport{
@@ -58,7 +58,11 @@ func (img *Image) Download(sd storage.Driver) error {
 	if sd != nil {
 		body, _ := ioutil.ReadAll(resp.Body)
 		img.Content = bimg.NewImage(body)
-		go sd.Write(body, img.Hash, "source/")
+		if async {
+			go sd.Write(body, img.Hash, "source/")
+		} else {
+			sd.Write(body, img.Hash, "source/")
+		}
 	}
 	return nil
 }

@@ -10,6 +10,7 @@ type Driver interface {
 	Init() error
 	Write(buf []byte, hash string, prefix string) error
 	NewReader(hash string, prefix string) (io.ReadCloser, error)
+	isCached(hash string, prefix string) (bool, error)
 }
 
 // makeFoldersFromHash compute new path in n folders and prefix based on current path

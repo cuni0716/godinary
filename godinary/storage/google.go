@@ -56,3 +56,12 @@ func (gsw *GoogleStorageDriver) NewReader(hash string, prefix string) (io.ReadCl
 	}
 	return rc, nil
 }
+
+func (gsw *GoogleStorageDriver) isCached(hash string, prefix string) (bool, error) {
+	ctx := context.Background()
+	_, newHash := makeFoldersFromHash(hash, prefix, 5)
+	if _, err := gsw.bucket.Object(newHash).Attrs(ctx); err != nil {
+		return false, err
+	}
+	return true, nil
+}
