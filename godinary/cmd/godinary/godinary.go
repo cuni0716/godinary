@@ -9,8 +9,8 @@ import (
 	raven "github.com/getsentry/raven-go"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"github.com/trilopin/godinary/http"
-	"github.com/trilopin/godinary/storage"
+	"godinary/http"
+	"godinary/storage"
 )
 
 func setupConfig() {

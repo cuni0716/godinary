@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/trilopin/godinary/storage"
+	"godinary/storage"
 	bimg "gopkg.in/h2non/bimg.v1"
 )
 

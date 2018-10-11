@@ -10,7 +10,7 @@ import (
 	"time"
 
 	raven "github.com/getsentry/raven-go"
-	"github.com/trilopin/godinary/storage"
+	"godinary/storage"
 )
 
 var (
