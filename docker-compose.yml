@@ -1,0 +1,11 @@
+version: "3"
+
+services:
+  godinary:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile
+    volumes:
+      - ./godinary:/go/src/app
+    command: go godinary
+    

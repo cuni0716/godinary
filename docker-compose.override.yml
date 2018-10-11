@@ -1,0 +1,12 @@
+version: "3"
+
+services:
+  godinary:
+    ports:
+      - 3000:3000
+    networks:
+      - godinary-net
+
+networks:
+  godinary-net: {}
+    
