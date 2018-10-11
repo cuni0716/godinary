@@ -100,7 +100,7 @@ func Fetch(opts *ServerOpts) func(http.ResponseWriter, *http.Request) {
 			GlobalThrotling <- struct{}{}
 			SpecificThrotling[domain] <- struct{}{}
 			dSem = time.Since(tSem).Seconds()
-			err = job.Source.Download(opts.StorageDriver)
+			err = job.Source.Download(opts.StorageDriver, true)
 			<-SpecificThrotling[domain]
 			<-GlobalThrotling
 

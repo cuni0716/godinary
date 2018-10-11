@@ -1,11 +1,12 @@
 package main
 
 import (
+	raven "github.com/getsentry/raven-go"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"github.com/streadway/amqp"
 	"github.com/trilopin/godinary/storage"
-	"interactors"
+	//"godinary/godinary/interactors"
 	"log"
 	"os"
 )
@@ -52,13 +53,25 @@ func initRabbitCacheImages(queueName string, rabbitmqURL string) {
 	failOnError(err, "Could not consume messages from RabbitMQ")
 	log.Printf("Starting queue %s consume, waiting for messages...", queueName)
 
-	storageDriver := setupStorage()
-	err = storageDriver.Init()
+	storage := setupStorage()
+	err = storage.Init()
 	failOnError(err, "Could not initiate storage session")
 	log.Printf("Storage initiated correctly")
 
+	semaphore := make(chan struct{}, viper.GetInt("max_rabbit_requests"))
+
 	for msg := range msgs {
-		cacheImage(msg.Body)
+		<-semaphore
+		go func(semaphore chan<- struct{}) {
+			message, err := cacheImage(msg.Body, storage, false)
+			log.Printf(message)
+			if err != nil {
+				//Notify Sentry
+				log.Printf(err)
+			}
+			semaphore <- struct{}{}
+		}(semaphore)
+
 	}
 
 }
@@ -70,7 +83,7 @@ func failOnError(err error, msg string) {
 }
 
 func setupStorage() storage.Driver {
-	var storageDriver storage.Driver
+	var storage storage.Driver
 	if viper.GetString("storage") == "gs" {
 		GCEProject := viper.GetString("gce_project")
 		GSBucket := viper.GetString("gs_bucket")
@@ -84,7 +97,7 @@ func setupStorage() storage.Driver {
 		if GSCredentials == "" {
 			log.Fatalln("GoogleStorage Credentials shold be setted")
 		}
-		storageDriver = &storage.GoogleStorageDriver{
+		storage := &storage.GoogleStorageDriver{
 			BucketName:  GSBucket,
 			ProjectName: GCEProject,
 			Credentials: GSCredentials,
@@ -94,9 +107,9 @@ func setupStorage() storage.Driver {
 		if FSBase == "" {
 			log.Fatalln("filesystem base path should be setted")
 		}
-		storageDriver = storage.NewFileDriver(FSBase)
+		storage = storage.NewFileDriver(FSBase)
 	}
-	return storageDriver
+	return storage
 }
 
 func setupConfig() {
@@ -111,6 +124,13 @@ func setupConfig() {
 	pflag.String("gs_credentials", "", "GS option: Path to service account file with Google Storage credentials")
 	//Local Storage flag setup TODO:Create relative path for fs_base
 	pflag.String("fs_base", "", "FS option: Base dir for filesystem storage")
+	//Sentry
+	pflag.String("sentry_url", "", "Sentry DSN for error tracking")
+	pflag.String("release", "", "Release hash to notify sentry")
+	//Max downloads
+	flag.Int("max_rabbit_requests", 100, "Maximum number of simultaneous downloads")
+
+	//Number threads
 
 	pflag.Parse()
 	viper.BindPFlags(pflag.CommandLine)
@@ -124,8 +144,17 @@ func setupConfig() {
 }
 
 func init() {
-
 	setupConfig()
+
+	if viper.GetString("sentry_url") != "" {
+		raven.SetDSN(viper.GetString("sentry_url"))
+		if viper.GetString("release") != "" {
+			raven.SetRelease(viper.GetString("release"))
+		}
+		raven.CapturePanic(func() {
+			// do all of the scary things here
+		}, nil)
+	}
 
 	log.SetOutput(os.Stdout)
 }

@@ -40,3 +40,11 @@ func (fs *FileDriver) NewReader(hash string, prefix string) (io.ReadCloser, erro
 	r, err := os.Open(newHash)
 	return r, err
 }
+
+func (fs *FileDriver) isCached(hash string, prefix string) (bool, error) {
+	_, newHash := makeFoldersFromHash(hash, fs.base+prefix, 3)
+	if _, err := os.Stat(newHash); err != nil {
+		return false, err
+	}
+	return true, nil
+}
