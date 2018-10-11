@@ -4,7 +4,7 @@ Image proxy with live resize &amp; tranformations
 
 Install
 ```
-git clone https://github.com/trilopin/godinary
+git clone https://github.com/hundredrooms/godinary
 ```
 
 
