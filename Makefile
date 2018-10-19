@@ -21,10 +21,25 @@ test-docker-image:
 
 run:
 	docker run --rm -p 3000:3000 --env-file .env \
-	       -v $$PWD/:/go/src/godinary/ \
+	       -v $$PWD/:cd ay/ \
 		   -ti godinary:dev
 
 sh-dev:
 	docker run --rm -p 3000:3000 --env-file .env \
 	       -v $$PWD/:/go/src/godinary/ \
 		   -ti godinary:dev bash
+
+up-dev:
+	docker-compose -f docker-compose.yml -f docker-compose.override.yml up --build
+
+up-godinary:
+	docker-compose -f docker-compose.yml up godinary
+
+down-dev:
+	docker-compose -f docker-compose.yml -f docker-compose.override.yml down
+
+run-rabbit-consumer-dev:
+	docker-compose -f docker-compose.override.yml exec godinary sh -c "go run /go/src/godinary/cmd/rabbit/rabbit.go"
+
+run-rabbit-publisher-dev:
+	docker-compose -f docker-compose.override.yml exec godinary sh -c "go run /go/src/godinary/cmd/rabbit/rabbit_producer.go --image_url=$(image_url)"

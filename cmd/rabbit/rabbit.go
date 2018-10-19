@@ -5,11 +5,13 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"github.com/streadway/amqp"
-	"godinary/storage"
 	"godinary/interactors"
+	"godinary/storage"
 	"log"
 	"os"
 )
+
+var logger *log.Logger
 
 func openRabbitQueueChannel(rabbitmqURL string, queue string) (*amqp.Connection, *amqp.Channel, error) {
 	//Make a connection
@@ -35,12 +37,13 @@ func openRabbitQueueChannel(rabbitmqURL string, queue string) (*amqp.Connection,
 }
 
 func initRabbitCacheImages(queueName string, rabbitmqURL string) {
-	log.Printf("Connecting to rabbitmq with URL %s ...", rabbitmqURL)
+
+	logger.Printf("Connecting to rabbitmq with URL %s ...", rabbitmqURL)
 	connection, channel, err := openRabbitQueueChannel(rabbitmqURL, queueName)
 	defer connection.Close()
 	defer channel.Close()
 
-	log.Printf("Connected correctly")
+	logger.Printf("Connected correctly")
 	msgs, err := channel.Consume(
 		queueName, // queue
 		"",        // consumer
@@ -51,53 +54,56 @@ func initRabbitCacheImages(queueName string, rabbitmqURL string) {
 		nil,       // args
 	)
 	failOnError(err, "Could not consume messages from RabbitMQ")
-	log.Printf("Starting queue %s consume, waiting for messages...", queueName)
+	logger.Printf("Starting queue %s consume, waiting for messages...", queueName)
 
-	storage := setupStorage()
-	err = storage.Init()
+	storageDriver := setupStorage()
+	err = storageDriver.Init()
 	failOnError(err, "Could not initiate storage session")
-	log.Printf("Storage initiated correctly")
+	logger.Printf("Storage initiated correctly, awaiting image urls...")
 
 	semaphore := make(chan struct{}, viper.GetInt("max_rabbit_requests"))
-
+	async := false
+	if viper.GetString("async_storage") == "true" {
+		async = true
+	}
 	for msg := range msgs {
-		<-semaphore
-		go func(semaphore chan<- struct{}) {
-			message, err := cacheImage(msg.Body, storage, false)
-			log.Printf(message)
-			if err != nil {
-				//Notify Sentry
-				log.Printf(err)
-			}
-			semaphore <- struct{}{}
-		}(semaphore)
-
+		semaphore <- struct{}{}
+		go func(image_url string, async bool, semaphore <-chan struct{}) {
+			defer func() {
+				if r := recover(); r != nil {
+					logger.Printf("Error: Panic produced processing %s : %s", image_url, r)
+				}
+				<-semaphore
+			}()
+			interactors.DownloadAndCacheImage(image_url, storageDriver, async, logger)
+		}(string(msg.Body[:]), async, semaphore)
 	}
 
 }
 
 func failOnError(err error, msg string) {
 	if err != nil {
-		log.Fatalf("%s: %s", msg, err)
+		logger.Panicf("%s: %s", msg, err)
+		raven.CaptureErrorAndWait(err, nil)
 	}
 }
 
 func setupStorage() storage.Driver {
-	var storage storage.Driver
+	var storageDriver storage.Driver
 	if viper.GetString("storage") == "gs" {
 		GCEProject := viper.GetString("gce_project")
 		GSBucket := viper.GetString("gs_bucket")
 		GSCredentials := viper.GetString("gs_credentials")
 		if GCEProject == "" {
-			log.Fatalln("GoogleStorage project should be setted")
+			logger.Panicln("GoogleStorage project should be setted")
 		}
 		if GSBucket == "" {
-			log.Fatalln("GoogleStorage bucket should be setted")
+			logger.Panicln("GoogleStorage bucket should be setted")
 		}
 		if GSCredentials == "" {
-			log.Fatalln("GoogleStorage Credentials shold be setted")
+			logger.Panicln("GoogleStorage Credentials shold be setted")
 		}
-		storage := &storage.GoogleStorageDriver{
+		storageDriver = &storage.GoogleStorageDriver{
 			BucketName:  GSBucket,
 			ProjectName: GCEProject,
 			Credentials: GSCredentials,
@@ -105,16 +111,16 @@ func setupStorage() storage.Driver {
 	} else {
 		FSBase := viper.GetString("fs_base")
 		if FSBase == "" {
-			log.Fatalln("filesystem base path should be setted")
+			logger.Panicln("filesystem base path should be setted")
 		}
-		storage = storage.NewFileDriver(FSBase)
+		storageDriver = storage.NewFileDriver(FSBase)
 	}
-	return storage
+	return storageDriver
 }
 
 func setupConfig() {
 	//Rabbit flag setup
-	pflag.String("rabbitmq_url", "amqp://guest:guest@localhost:5672/", "RabbitMQ DSN")
+	pflag.String("rabbitmq_url", "amqp://guest:guest@godinary.rabbitmq:5672//", "RabbitMQ DSN")
 	pflag.String("rabbitmq_queue", "core_godinary", "Name of RabbitMQ queue to get images")
 	//Decide wich type of storage we will use
 	pflag.String("storage", "fs", "Storage type: 'gs' for google storage or 'fs' for filesystem")
@@ -128,8 +134,9 @@ func setupConfig() {
 	pflag.String("sentry_url", "", "Sentry DSN for error tracking")
 	pflag.String("release", "", "Release hash to notify sentry")
 	//Max downloads
-	flag.Int("max_rabbit_requests", 100, "Maximum number of simultaneous downloads")
-
+	pflag.Int("max_rabbit_requests", 100, "Maximum number of simultaneous downloads")
+	//Async storage to googlecloud
+	pflag.String("async_storage", "true", "Storage Option, if 'true' ,storage will be asynchronous")
 	//Number threads
 
 	pflag.Parse()
@@ -144,6 +151,7 @@ func setupConfig() {
 }
 
 func init() {
+
 	setupConfig()
 
 	if viper.GetString("sentry_url") != "" {
@@ -156,7 +164,8 @@ func init() {
 		}, nil)
 	}
 
-	log.SetOutput(os.Stdout)
+	logger = log.New(os.Stdout, "rabbitmq_worker: ", log.Lshortfile|log.LstdFlags)
+	logger.SetOutput(os.Stdout)
 }
 
 func main() {

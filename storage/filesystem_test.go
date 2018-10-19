@@ -39,3 +39,10 @@ func TestNewReader(t *testing.T) {
 	assert.Equal(t, err.Error(), "open /fakedir//tmp/aa/bb/cc/aabbccddee: no such file or directory")
 	assert.Nil(t, r)
 }
+
+func TestIsCached(t *testing.T) {
+	fw := NewFileDriver("/fakedir/")
+	exist, err := fw.Exists("aabbccddee", "/tmp/")
+	assert.Nil(t, err)
+	assert.Equal(t, exist, false)
+}

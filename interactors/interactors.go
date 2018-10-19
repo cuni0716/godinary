@@ -1,47 +1,74 @@
 package interactors
 
 import (
-	"errors"
 	"fmt"
-	"io"
-	"io/ioutil"
-	"log"
-	"strconv"
-	"strings"
-
 	raven "github.com/getsentry/raven-go"
 	"godinary/image"
-	bimg "gopkg.in/h2non/bimg.v1"
+	"godinary/storage"
+	"log"
+	"time"
 )
 
-func createJobFromImageURL(imageURL string) (image.Job, error) {
+func createJobFromImageURL(imageURL string) (*image.Job, error) {
 	job := image.NewJob()
 	job.AcceptWebp = false
 	err := job.Parse(imageURL, true)
 	return job, err
 }
 
-func imageIsCached(job image.Job, storage storage.Driver) (bool, error) {
-	return storage.isCached(job.Target.Hash, "derived/")
+func storeImageAndPrintLogs(job *image.Job, body []byte, storageDriver storage.Driver, logger *log.Logger, existTime float64, downloadTime float64) {
+	currentTime := time.Now()
+	err := storageDriver.Write(body, job.Source.Hash, "source/")
+	storageTime := time.Since(currentTime).Seconds()
+	totalTime := existTime + downloadTime + storageTime
+	timeString := fmt.Sprintf("\n\t=> TOTAL %0.5fs - CACHE %0.5fs - DOWNLOAD %0.5fs - STORE %0.5fs",
+		totalTime, existTime, downloadTime, storageTime)
+	if err != nil {
+		logger.Printf("Error: Image could not be stored: \"%s\" with error %s"+timeString, job.Source.URL, err)
+		raven.CaptureErrorAndWait(err, nil)
+	} else {
+		logger.Printf("Image saved correctly: %s"+timeString, job.Source.URL)
+	}
 }
 
-func downloadAndStoreImage(job image.Job, storage storage.Drivers, async bool) error {
-	return job.Source.Download(storage, async)
-}
-
-func cacheImage(imageURL string, storage storage.Driver, async bool) (string, error) {
+//DownloadAndCacheImage This function cache a given url in our storage. If the given url_image
+// is already cached doesn't do nothing and return nil, if we couldn't douwnload the image return nil
+func DownloadAndCacheImage(imageURL string, storageDriver storage.Driver, async bool, logger *log.Logger) error {
 	job, err := createJobFromImageURL(imageURL)
 	if err != nil {
-		return fmt.Sprintf("Error: URL could not be parsed: %s", err
-	}
-	if isCached, err := imageIsCached(job, storage); !isCached {
-		err = downloadAndStoreImage(job, storage, fal)
-		if err != nil {
-			return fmt.Sprintf("Image cached correctly: %s", imageURL), _
-		}
-		return "Error: Error produced when downloading and storing image", err
-		raven.CaptureErrorAndWait(err, nil)
+		logger.Printf("Error: URL could not be parsed: %s", imageURL)
+		return err
 	}
 
-	return fmt.Sprintf("URL image is already cached: %s", imageURL), _
+	currentTime := time.Now()
+	exist, err := storageDriver.Exists(job.Source.Hash, "source/")
+	existTime := time.Since(currentTime).Seconds()
+	if exist == true {
+		logger.Printf("Image URL is already cached: %s\n\t=> CACHE %0.5fs", imageURL, existTime)
+	} else if err != nil {
+		logger.Printf("Error: Could not acces to google cloud storage with image url: \"%s\". Error %s", imageURL, err)
+		return err
+	} else {
+		currentTime := time.Now()
+		body, err := job.Source.Download()
+		downloadTime := time.Since(currentTime).Seconds()
+		if err != nil {
+			logger.Printf("Image could not be downloaded: %s \n\t=> CACHE %0.5fs - DOWNLOAD %0.5fs",
+				imageURL, existTime, downloadTime)
+			return nil
+		}
+		if async {
+			go func() {
+				defer func() {
+					if r := recover(); r != nil {
+						logger.Printf("Error: Panic produced processing %s : %s", imageURL, r)
+					}
+				}()
+				storeImageAndPrintLogs(job, body, storageDriver, logger, existTime, downloadTime)
+			}()
+		} else {
+			storeImageAndPrintLogs(job, body, storageDriver, logger, existTime, downloadTime)
+		}
+	}
+	return nil
 }

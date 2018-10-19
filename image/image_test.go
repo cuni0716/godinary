@@ -39,19 +39,19 @@ func TestExtractInfoFail(t *testing.T) {
 
 func TestDownload(t *testing.T) {
 	img := Image{URL: testURL}
-	err := img.Download(nil)
+	_, err := img.Download()
 	assert.Nil(t, err)
 }
 
 func TestDownloadFailBecauseNoURL(t *testing.T) {
 	img := Image{}
-	err := img.Download(nil)
+	_, err := img.Download()
 	assert.Equal(t, err, fmt.Errorf("sourceURL not found in image"))
 }
 
 func TestDownloadFailBecauseBadURL(t *testing.T) {
 	img := Image{URL: "fake"}
-	err := img.Download(nil)
+	_, err := img.Download()
 	assert.Equal(t, err, fmt.Errorf("cannot download image fake: Get fake: unsupported protocol scheme \"\""))
 }
 
