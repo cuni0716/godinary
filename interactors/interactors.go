@@ -47,6 +47,7 @@ func DownloadAndCacheImage(imageURL string, storageDriver storage.Driver, async 
 		logger.Printf("Image URL is already cached: %s\n\t=> CACHE %0.5fs", imageURL, existTime)
 	} else if err != nil {
 		logger.Printf("Error: Could not acces to google cloud storage with image url: \"%s\". Error %s", imageURL, err)
+		raven.CaptureErrorAndWait(err, nil)
 		return err
 	} else {
 		currentTime := time.Now()
@@ -59,12 +60,9 @@ func DownloadAndCacheImage(imageURL string, storageDriver storage.Driver, async 
 		}
 		if async {
 			go func() {
-				defer func() {
-					if r := recover(); r != nil {
-						logger.Printf("Error: Panic produced processing %s : %s", imageURL, r)
-					}
-				}()
-				storeImageAndPrintLogs(job, body, storageDriver, logger, existTime, downloadTime)
+				raven.CapturePanic(func() {
+					storeImageAndPrintLogs(job, body, storageDriver, logger, existTime, downloadTime)
+				}, nil)
 			}()
 		} else {
 			storeImageAndPrintLogs(job, body, storageDriver, logger, existTime, downloadTime)

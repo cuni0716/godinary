@@ -68,23 +68,20 @@ func initRabbitCacheImages(queueName string, rabbitmqURL string) {
 	}
 	for msg := range msgs {
 		semaphore <- struct{}{}
-		go func(image_url string, async bool, semaphore <-chan struct{}) {
-			defer func() {
-				if r := recover(); r != nil {
-					logger.Printf("Error: Panic produced processing %s : %s", image_url, r)
-				}
-				<-semaphore
-			}()
-			interactors.DownloadAndCacheImage(image_url, storageDriver, async, logger)
-		}(string(msg.Body[:]), async, semaphore)
+		go func(image_url string) {
+			raven.CapturePanic(func() {
+				interactors.DownloadAndCacheImage(image_url, storageDriver, async, logger)
+			}, nil)
+			<-semaphore
+		}(string(msg.Body[:]))
 	}
 
 }
 
 func failOnError(err error, msg string) {
 	if err != nil {
-		logger.Panicf("%s: %s", msg, err)
 		raven.CaptureErrorAndWait(err, nil)
+		logger.Panicf("%s: %s", msg, err)
 	}
 }
 
@@ -159,9 +156,6 @@ func init() {
 		if viper.GetString("release") != "" {
 			raven.SetRelease(viper.GetString("release"))
 		}
-		raven.CapturePanic(func() {
-			// do all of the scary things here
-		}, nil)
 	}
 
 	logger = log.New(os.Stdout, "rabbitmq_worker: ", log.Lshortfile|log.LstdFlags)
