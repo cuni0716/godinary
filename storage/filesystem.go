@@ -37,6 +37,19 @@ func (fs *FileDriver) Write(buf []byte, hash string, prefix string) error {
 // NewReader produces a file descriptor
 func (fs *FileDriver) NewReader(hash string, prefix string) (io.ReadCloser, error) {
 	_, newHash := makeFoldersFromHash(hash, fs.base+prefix, 3)
+
 	r, err := os.Open(newHash)
 	return r, err
+}
+
+// Exists Return true if image is already cached
+func (fs *FileDriver) Exists(hash string, prefix string) (bool, error) {
+	_, newHash := makeFoldersFromHash(hash, fs.base+prefix, 3)
+	if _, err := os.Stat(newHash); err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }

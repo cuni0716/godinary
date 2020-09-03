@@ -1,0 +1,10 @@
+version: '3'
+
+services:
+  godinary:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+    - .:/go/src/godinary/
+    env_file: .env

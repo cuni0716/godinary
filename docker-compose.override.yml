@@ -1,0 +1,43 @@
+version: '3'
+
+services:
+  godinary:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      args:
+        APP_ENV: 'local'
+    depends_on:
+      - godinary.rabbitmq
+    ports:
+      - 3002:3002
+    networks:
+      - service-grp-net
+      - godinary-net
+    volumes:
+      - ./storage/sa/:/app/data
+    env_file: .env
+
+  godinary.rabbitmq:
+    image: rabbitmq:3-management-alpine
+    ports:
+      - 15674:15672
+    networks:
+      - godinary-net
+
+  godinary.redis:
+    image: hundredrooms/redis:4-alpine
+    ports:
+      - 16379:16379
+    volumes:
+      - redis-data:/data
+    networks:
+      - godinary-net
+
+networks:
+  godinary-net: {}
+  service-grp-net:
+    external: true
+
+volumes:
+  redis-data: {}

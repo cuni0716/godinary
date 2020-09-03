@@ -13,7 +13,7 @@ import (
 	"time"
 
 	raven "github.com/getsentry/raven-go"
-	"github.com/trilopin/godinary/image"
+	"godinary/image"
 	bimg "gopkg.in/h2non/bimg.v1"
 )
 
@@ -100,7 +100,15 @@ func Fetch(opts *ServerOpts) func(http.ResponseWriter, *http.Request) {
 			GlobalThrotling <- struct{}{}
 			SpecificThrotling[domain] <- struct{}{}
 			dSem = time.Since(tSem).Seconds()
-			err = job.Source.Download(opts.StorageDriver)
+			body, err := job.Source.Download()
+			if err == nil && opts.StorageDriver != nil {
+				go func() {
+					err := opts.StorageDriver.Write(body, job.Source.Hash, "source/")
+					if err != nil {
+						log.Printf("Error: Image %s could not be stored: %s", urlInfo, err)
+					}
+				}()
+			}
 			<-SpecificThrotling[domain]
 			<-GlobalThrotling
 
@@ -179,7 +187,7 @@ func Upload(opts *ServerOpts) func(http.ResponseWriter, *http.Request) {
 			}
 		}
 
-		// Download if original image does not exists at storage, load otherwise
+		// Load image if exists on storage
 		reader, err = opts.StorageDriver.NewReader(job.Source.Hash, "upload/")
 		if err == nil {
 			defer reader.Close()

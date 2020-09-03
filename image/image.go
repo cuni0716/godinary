@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/trilopin/godinary/storage"
+	"godinary/storage"
 	bimg "gopkg.in/h2non/bimg.v1"
 )
 
@@ -32,7 +32,7 @@ func (img *Image) Load(r io.Reader) {
 }
 
 // Download retrieves url into io.Reader
-func (img *Image) Download(sd storage.Driver) error {
+func (img *Image) Download() ([]byte, error) {
 
 	c := &http.Client{
 		Transport: &http.Transport{
@@ -47,20 +47,17 @@ func (img *Image) Download(sd storage.Driver) error {
 	}
 
 	if img.URL == "" {
-		return fmt.Errorf("sourceURL not found in image")
+		return nil, fmt.Errorf("sourceURL not found in image")
 	}
 
 	resp, err := c.Get(img.URL)
 	if err != nil || resp.StatusCode >= 400 {
-		return fmt.Errorf("cannot download image %s: %v", img.URL, err)
+		return nil, fmt.Errorf("cannot download image %s: %v", img.URL, err)
 	}
 
-	if sd != nil {
-		body, _ := ioutil.ReadAll(resp.Body)
-		img.Content = bimg.NewImage(body)
-		go sd.Write(body, img.Hash, "source/")
-	}
-	return nil
+	body, err := ioutil.ReadAll(resp.Body)
+	img.Content = bimg.NewImage(body)
+	return body, err
 }
 
 // ExtractInfo stores dimensions into object

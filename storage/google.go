@@ -1,10 +1,9 @@
 package storage
 
 import (
-	"io"
-
 	"golang.org/x/net/context"
 	"google.golang.org/api/option"
+	"io"
 
 	gs "cloud.google.com/go/storage"
 )
@@ -55,4 +54,18 @@ func (gsw *GoogleStorageDriver) NewReader(hash string, prefix string) (io.ReadCl
 		return nil, err
 	}
 	return rc, nil
+}
+
+// Exists Return true if image is already cached and false if not
+func (gsw *GoogleStorageDriver) Exists(hash string, prefix string) (bool, error) {
+	ctx := context.Background()
+	_, newHash := makeFoldersFromHash(hash, prefix, 5)
+	_, err := gsw.bucket.Object(newHash).Attrs(ctx)
+	if err != nil {
+		if err == gs.ErrObjectNotExist {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }

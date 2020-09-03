@@ -11,8 +11,8 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
-	"github.com/trilopin/godinary/importer"
-	"github.com/trilopin/godinary/storage"
+	"godinary/importer"
+	"godinary/storage"
 )
 
 func setupConfig() {

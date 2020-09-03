@@ -10,6 +10,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # setup go & glide
 RUN curl https://glide.sh/get | sh
-WORKDIR /go/src/github.com/trilopin/godinary/
+WORKDIR /go/src/godinary/
 RUN go get github.com/codegangsta/gin
 CMD [ "/go/bin/gin", "-i", "-a", "3002", "-d", "cmd/godinary", "run", "godinary.go" ]

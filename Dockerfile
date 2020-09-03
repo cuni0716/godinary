@@ -18,11 +18,11 @@ RUN export CLOUD_SDK_REPO="cloud-sdk-$(lsb_release -c -s)" && \
 
 # setup go & glide
 RUN curl https://glide.sh/get | sh
-WORKDIR /go/src/github.com/trilopin/godinary/
+WORKDIR /go/src/godinary/
 
 # app
-ENV SRC_DIR=/go/src/github.com/trilopin/godinary/
-COPY . /go/src/github.com/trilopin/godinary/
+ENV SRC_DIR=/go/src/godinary/
+COPY . /go/src/godinary/
 RUN make get-deps
 RUN if [ "$RUNTESTS" = "1" ]; then make test; fi
 RUN for i in cmd/*; do go build -o "bin/$(basename $i)" "$i/$(basename $i).go"; done
@@ -37,6 +37,5 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 RUN mkdir /app
 COPY --from=builder /usr/lib/x86_64-linux-gnu/ /usr/lib/x86_64-linux-gnu/
 COPY --from=builder /lib/ /lib/
-COPY --from=builder /go/src/github.com/trilopin/godinary/bin/ /app/
+COPY --from=builder /go/src/godinary/bin/ /app/
 ENTRYPOINT ["/app/godinary"]
-

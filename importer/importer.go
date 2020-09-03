@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/trilopin/godinary/storage"
+	"godinary/storage"
 )
 
 // Importer is the interface to implement to imretrieve and save images
